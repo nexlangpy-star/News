@@ -1,28 +1,31 @@
-name: Build APK and IPA
+name: All Builds (Linux, macOS, Windows, Android, IPA, APK, AAB)
 
 on:
+  # Runs on push to any of the below branches
   push:
     branches:
       - master
       - main
+  # Runs on pull request events that target one of the below branches
   pull_request:
     branches:
       - master
       - main
+
+  # Allows you to run this workflow manually from the Actions tab of the repository
   workflow_dispatch:
 
 env:
+  # https://flet.dev/docs/publish#versioning
   BUILD_NUMBER: 1
   BUILD_VERSION: 1.0.0
   PYTHON_VERSION: 3.12.2
   FLUTTER_VERSION: 3.22.2
 
 jobs:
-  # ------------------------------------------------------------
-  #  APK (Android)
-  # ------------------------------------------------------------
-  build-apk:
+  build-linux:
     runs-on: ubuntu-latest
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -36,17 +39,158 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install pyarmor
 
-    - name: Obfuscate Python Code with PyArmor
-      run: |
-        pyarmor gen --recursive --output dist_obf .
+    - name: Setup Flutter ${{ env.FLUTTER_VERSION }}
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: ${{ env.FLUTTER_VERSION }}
 
-    - name: Replace source with obfuscated code
+    - name: Patch for linux build
       run: |
-        rm -rf *.py
-        cp -r dist_obf/* .
-        rm -rf dist_obf
+        flutter doctor
+        sudo apt-get update -y
+        sudo apt-get install -y ninja-build libgtk-3-dev
+        flutter doctor
+
+    - name: Flet Build Linux
+      run: |
+        flutter config --no-analytics 
+        flet build linux --verbose --build-number=$BUILD_NUMBER --build-version=$BUILD_VERSION
+
+    - name: Upload Linux Artifact
+      uses: actions/upload-artifact@v4.3.4
+      with:
+        name: linux-build-artifact
+        path: build/linux
+        if-no-files-found: warn
+        overwrite: false
+
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Python ${{ env.PYTHON_VERSION }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install Python Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Setup Flutter ${{ env.FLUTTER_VERSION }}
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: ${{ env.FLUTTER_VERSION }}
+
+    - name: Flet Build macOS
+      run: |
+        flutter config --no-analytics
+        flet build macos --verbose --build-number=$BUILD_NUMBER --build-version=$BUILD_VERSION
+
+    - name: Upload macOS Artifact
+      uses: actions/upload-artifact@v4.3.4
+      with:
+        name: macos-build-artifact
+        path: build/macos
+        if-no-files-found: warn
+        overwrite: false
+
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Python ${{ env.PYTHON_VERSION }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install Python Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Setup Flutter ${{ env.FLUTTER_VERSION }}
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: ${{ env.FLUTTER_VERSION }}
+
+    - name: Flet Build Windows
+      run: |
+        flutter config --no-analytics
+        flet build windows --verbose --no-rich-output --build-number=$env:BUILD_NUMBER --build-version=$env:BUILD_VERSION
+
+    - name: Upload Windows Artifact
+      uses: actions/upload-artifact@v4.3.4
+      with:
+        name: windows-build-artifact
+        path: build/windows
+        if-no-files-found: warn
+        overwrite: false
+
+  build-aab:
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Python ${{ env.PYTHON_VERSION }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install Python Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Setup Flutter ${{ env.FLUTTER_VERSION }}
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: ${{ env.FLUTTER_VERSION }}
+
+    - name: Flet Build AAB
+      run: |
+        flutter config --no-analytics
+        flet build aab --verbose --build-number=$BUILD_NUMBER --build-version=$BUILD_VERSION
+
+    - name: Upload AAB Artifact
+      uses: actions/upload-artifact@v4.3.4
+      with:
+        name: aab-build-artifact
+        path: build/aab
+        if-no-files-found: warn
+        overwrite: false
+
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Python ${{ env.PYTHON_VERSION }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install Python Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Setup Flutter ${{ env.FLUTTER_VERSION }}
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: ${{ env.FLUTTER_VERSION }}
 
     - name: Setup Java JDK
       uses: actions/setup-java@v4.2.1
@@ -54,60 +198,10 @@ jobs:
         distribution: 'temurin'
         java-version: '21'
 
-    - name: Setup Flutter ${{ env.FLUTTER_VERSION }}
-      uses: subosito/flutter-action@v2
-      with:
-        flutter-version: ${{ env.FLUTTER_VERSION }}
-
-    - name: Install Linux dependencies
-      run: |
-        sudo apt-get update -y
-        sudo apt-get install -y ninja-build libgtk-3-dev unzip wget
-
-    - name: Setup Android SDK
-      run: |
-        # إنشاء مجلد Android SDK
-        export ANDROID_HOME=$HOME/android-sdk
-        mkdir -p $ANDROID_HOME
-        
-        # تحميل Command Line Tools (أحدث إصدار)
-        cd $ANDROID_HOME
-        wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-        unzip -q commandlinetools-linux-11076708_latest.zip
-        rm commandlinetools-linux-11076708_latest.zip
-        
-        # ترتيب المجلدات بالشكل الصحيح
-        mkdir -p cmdline-tools
-        mv cmdline-tools cmdline-tools-temp
-        mv cmdline-tools-temp cmdline-tools/latest
-        
-        # إضافة للمسار
-        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
-        
-        # قبول الرخص
-        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
-        
-        # تثبيت الإصدارات المطلوبة (SDK 36 و BuildTools 28.0.3)
-        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-          "platform-tools" \
-          "platforms;android-36" \
-          "build-tools;28.0.3" \
-          "cmdline-tools;latest"
-        
-        # حفظ المتغيرات للخطوات اللاحقة
-        echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-        echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
-        echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
-
-    - name: Verify Android Setup
-      run: |
-        flutter doctor -v
-        sdkmanager --list | grep -E "platforms;android|build-tools"
-
     - name: Flet Build APK
       run: |
         flutter config --no-analytics
-        flet build apk --verbose --yes --build-number=$BUILD_NUMBER --build-version=$BUILD_VERSION
+        flet build apk --verbose --build-number=$BUILD_NUMBER --build-version=$BUILD_VERSION
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4.3.4
@@ -117,11 +211,9 @@ jobs:
         if-no-files-found: warn
         overwrite: false
 
-  # ------------------------------------------------------------
-  #  IPA (iOS)
-  # ------------------------------------------------------------
   build-ipa:
     runs-on: macos-latest
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -135,17 +227,6 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install pyarmor
-
-    - name: Obfuscate Python Code with PyArmor
-      run: |
-        pyarmor gen --recursive --output dist_obf .
-
-    - name: Replace source with obfuscated code
-      run: |
-        rm -rf *.py
-        cp -r dist_obf/* .
-        rm -rf dist_obf
 
     - name: Setup Flutter ${{ env.FLUTTER_VERSION }}
       uses: subosito/flutter-action@v2
@@ -155,7 +236,7 @@ jobs:
     - name: Flet Build IPA
       run: |
         flutter config --no-analytics
-        flet build ipa --verbose --yes --build-number=$BUILD_NUMBER --build-version=$BUILD_VERSION
+        flet build ipa --verbose --build-number=$BUILD_NUMBER --build-version=$BUILD_VERSION 
 
     - name: Upload IPA Artifact
       uses: actions/upload-artifact@v4.3.4
