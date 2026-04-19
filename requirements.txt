@@ -13,3 +13,4 @@ cython
 colorama
 bs4
 user_agent
+psutil
